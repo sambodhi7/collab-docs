@@ -1,6 +1,6 @@
 # Collaborative Documents
 
-Stage 1 is a private document application built with Next.js, Better Auth, Prisma, and PostgreSQL. Google is the only enabled sign-in provider. Signed-in users can create, list, open, rename, and delete their own document records.
+This private document application uses Next.js, Better Auth, Prisma, PostgreSQL, and Tiptap. Google is the only enabled sign-in provider. Signed-in users can create, list, open, rename, delete, and edit their own documents.
 
 ## Local setup
 
@@ -17,4 +17,4 @@ The configured `BETTER_AUTH_URL` must match the browser origin. Keep `.env` priv
 
 Run `npm run lint`, `npx tsc --noEmit`, `npm test`, and `npm run build`. To verify authentication end to end, sign in with Google, refresh `/dashboard`, sign out, and confirm `/dashboard` redirects to `/login`.
 
-The automated tests simulate two accounts and check the server-side owner predicates. For the live ownership check, sign in with two separate Google accounts. Create a document as account A, then confirm account B cannot see it in the dashboard and receives 404 for direct `GET`, `PATCH`, and `DELETE` requests to `/api/documents/:id`. Signed-out requests to all document endpoints must return 401. Title payloads must contain only a nonblank `title` of at most 200 characters; clients cannot supply `ownerId`.
+The automated tests simulate two accounts and check the server-side owner predicates. For the live ownership check, sign in with two separate Google accounts. Create a document as account A, type and format text, wait for "All changes saved," then reload to verify persistence. Confirm account B cannot see or edit it and receives 404 for direct `GET`, `PATCH`, `DELETE`, and `PUT /api/documents/:id/content` requests. Signed-out requests to all document endpoints must return 401. Title payloads must contain only a nonblank `title` of at most 200 characters; clients cannot supply `ownerId`. Content saves accept validated Tiptap JSON with a revision number. If another tab saves first, the stale tab receives a conflict warning instead of overwriting the newer content.

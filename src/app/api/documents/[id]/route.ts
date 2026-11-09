@@ -13,7 +13,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
   const document = await prisma.document.findFirst({
     where: { id, ownerId: session.user.id },
-    select: { id: true, title: true, createdAt: true, updatedAt: true },
+    select: { id: true, title: true, content: true, revision: true, createdAt: true, updatedAt: true },
   });
   return document ? Response.json(document) : missing();
 }

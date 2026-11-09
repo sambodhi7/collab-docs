@@ -72,6 +72,8 @@ model Verification {
 model Document {
   id        String   @id @default(cuid())
   title     String   @default("Untitled Document")
+  content   Json?
+  revision  Int      @default(0)
   ownerId   String
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
