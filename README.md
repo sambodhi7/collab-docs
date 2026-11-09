@@ -5,8 +5,8 @@ Stage 1 is a private document application built with Next.js, Better Auth, Prism
 ## Local setup
 
 1. Install dependencies with `npm install`.
-2. Start PostgreSQL and create a database for this project.
-3. Copy `.env.example` to `.env` and set `DATABASE_URL`, `BETTER_AUTH_SECRET` (at least 32 random characters), `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`.
+2. Create a Supabase project and copy its transaction-mode pooler URL into `DATABASE_URL` and session-mode pooler URL into `DIRECT_URL`. Replace the password placeholder locally; URL-encode reserved password characters such as `@` as `%40`.
+3. Copy `.env.example` to `.env` and set those database URLs, `BETTER_AUTH_SECRET` (at least 32 random characters), `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`.
 4. In Google Cloud Console, create a Web application OAuth client. Add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI. Use the exact deployed origin with `/api/auth/callback/google` in production.
 5. Run `npm run db:migrate` and `npm run db:generate`.
 6. Run `npm run dev` and open `http://localhost:3000/login`.
