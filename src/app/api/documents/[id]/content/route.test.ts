@@ -30,14 +30,20 @@ it("rejects malformed content and unsafe links", async () => {
 it("scopes a save to owner and revision", async () => {
   database.updateMany.mockResolvedValue({ count: 1 });
   expect((await PUT(request({ content, revision: 2 }), context)).status).toBe(200);
-  expect(database.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id, ownerId: "user-a", revision: 2 }, data: expect.objectContaining({ revision: { increment: 1 } }) }));
+  expect(database.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id, OR: [{ ownerId: "user-a" }, { members: { some: { userId: "user-a", role: "EDITOR" } } }], revision: 2 }, data: expect.objectContaining({ revision: { increment: 1 } }) }));
 });
 
 it("distinguishes a stale edit from another user's document without revealing it", async () => {
   database.updateMany.mockResolvedValue({ count: 0 });
-  database.findFirst.mockResolvedValueOnce({ id }).mockResolvedValueOnce(null);
+  database.findFirst.mockResolvedValueOnce({ id }).mockResolvedValueOnce({ id }).mockResolvedValueOnce(null);
   expect((await PUT(request({ content, revision: 0 }), context)).status).toBe(409);
   state.userId = "user-b";
   expect((await PUT(request({ content, revision: 0 }), context)).status).toBe(404);
-  expect(database.findFirst).toHaveBeenLastCalledWith({ where: { id, ownerId: "user-b" }, select: { id: true } });
+  expect(database.findFirst).toHaveBeenLastCalledWith({ where: { id, OR: [{ ownerId: "user-b" }, { members: { some: { userId: "user-b" } } }] }, select: { id: true } });
+});
+
+it("rejects a viewer's save", async () => {
+  database.updateMany.mockResolvedValue({ count: 0 });
+  database.findFirst.mockResolvedValueOnce({ id }).mockResolvedValueOnce(null);
+  expect((await PUT(request({ content, revision: 0 }), context)).status).toBe(403);
 });

@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { documentId, documentInput } from "@/lib/document-input";
 import { prisma } from "@/lib/prisma";
+import { readableDocument } from "@/lib/document-permissions";
 
 type RouteContext = { params: Promise<{ id: string }> };
 const missing = () => Response.json({ error: "Document not found" }, { status: 404 });
@@ -12,7 +13,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   if (!documentId.safeParse(id).success) return missing();
 
   const document = await prisma.document.findFirst({
-    where: { id, ownerId: session.user.id },
+    where: readableDocument(id, session.user.id),
     select: { id: true, title: true, content: true, revision: true, createdAt: true, updatedAt: true },
   });
   return document ? Response.json(document) : missing();

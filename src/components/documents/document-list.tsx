@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-type DocumentItem = { id: string; title: string; createdAt: string; updatedAt: string };
+type DocumentItem = { id: string; title: string; createdAt: string; updatedAt: string; role: "OWNER" | "VIEWER" | "EDITOR" };
 
 function date(value: string) {
   return new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(value));
@@ -27,7 +27,7 @@ export function DocumentList({ initialDocuments }: { initialDocuments: DocumentI
     try {
       const response = await fetch("/api/documents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) });
       if (!response.ok) throw new Error(response.status === 400 ? "Enter a title between 1 and 200 characters." : "Could not create the document. Try again.");
-      const document: DocumentItem = await response.json();
+      const document: DocumentItem = { ...await response.json(), role: "OWNER" };
       setDocuments((current) => [document, ...current]);
       setTitle("");
       router.refresh();
@@ -43,7 +43,7 @@ export function DocumentList({ initialDocuments }: { initialDocuments: DocumentI
     try {
       const response = await fetch(`/api/documents/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: editTitle }) });
       if (!response.ok) throw new Error(response.status === 400 ? "Enter a title between 1 and 200 characters." : "Could not rename the document. Try again.");
-      const updated: DocumentItem = await response.json();
+      const updated: DocumentItem = { ...await response.json(), role: "OWNER" };
       setDocuments((current) => current.map((item) => item.id === id ? updated : item).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       setEditing(null);
       router.refresh();
@@ -81,9 +81,9 @@ export function DocumentList({ initialDocuments }: { initialDocuments: DocumentI
         <ul className="grid gap-4 sm:grid-cols-2">{documents.map((document) => <li key={document.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-indigo-200 hover:shadow-md">
           <div className="mb-5 flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600" aria-hidden="true">▤</span><div className="min-w-0 flex-1">
             {editing === document.id ? <form onSubmit={(event) => rename(event, document.id)} className="space-y-2"><label htmlFor={`title-${document.id}`} className="sr-only">New document title</label><input id={`title-${document.id}`} autoFocus value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={200} required className="w-full rounded border border-indigo-400 px-2 py-1 text-zinc-900" /><div className="flex gap-3 text-sm"><button disabled={busy !== null} className="font-semibold text-indigo-700 disabled:opacity-50">Save</button><button type="button" onClick={() => setEditing(null)} className="text-zinc-600">Cancel</button></div></form> : <Link href={`/documents/${document.id}`} className="block truncate font-semibold text-zinc-900 hover:text-indigo-700 hover:underline" title={document.title}>{document.title}</Link>}
-            <p className="mt-1 text-xs text-zinc-500">Updated {date(document.updatedAt)}</p>
+            <p className="mt-1 text-xs text-zinc-500">{document.role === "OWNER" ? "Owned by you" : `Shared · ${document.role.toLowerCase()}`} · Updated {date(document.updatedAt)}</p>
           </div></div>
-          {deleting === document.id ? <div className="rounded-lg bg-red-50 p-3 text-sm"><p className="mb-2 text-red-900">Delete this document permanently?</p><div className="flex gap-3"><button type="button" disabled={busy !== null} onClick={() => remove(document.id)} className="font-semibold text-red-700 disabled:opacity-50">{busy === document.id ? "Deleting…" : "Delete"}</button><button type="button" onClick={() => setDeleting(null)} className="text-zinc-600">Cancel</button></div></div> : <div className="flex items-center gap-4 border-t border-zinc-100 pt-3 text-sm"><Link href={`/documents/${document.id}`} className="font-medium text-indigo-700 hover:underline">Open</Link><button type="button" disabled={busy !== null} onClick={() => { setEditing(document.id); setEditTitle(document.title); setDeleting(null); }} className="text-zinc-600 hover:text-zinc-900 disabled:opacity-50">Rename</button><button type="button" disabled={busy !== null} onClick={() => { setDeleting(document.id); setEditing(null); }} className="ml-auto text-red-700 hover:underline disabled:opacity-50">Delete</button></div>}
+          {deleting === document.id ? <div className="rounded-lg bg-red-50 p-3 text-sm"><p className="mb-2 text-red-900">Delete this document permanently?</p><div className="flex gap-3"><button type="button" disabled={busy !== null} onClick={() => remove(document.id)} className="font-semibold text-red-700 disabled:opacity-50">{busy === document.id ? "Deleting…" : "Delete"}</button><button type="button" onClick={() => setDeleting(null)} className="text-zinc-600">Cancel</button></div></div> : <div className="flex items-center gap-4 border-t border-zinc-100 pt-3 text-sm"><Link href={`/documents/${document.id}`} className="font-medium text-indigo-700 hover:underline">Open</Link>{document.role === "OWNER" && <><button type="button" disabled={busy !== null} onClick={() => { setEditing(document.id); setEditTitle(document.title); setDeleting(null); }} className="text-zinc-600 hover:text-zinc-900 disabled:opacity-50">Rename</button><button type="button" disabled={busy !== null} onClick={() => { setDeleting(document.id); setEditing(null); }} className="ml-auto text-red-700 hover:underline disabled:opacity-50">Delete</button></>}</div>}
         </li>)}</ul>}
     </div>
   </section>;

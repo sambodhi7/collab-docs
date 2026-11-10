@@ -18,6 +18,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   documents     Document[]
+  memberships   DocumentMember[]
 
   @@map("user")
 }
@@ -76,8 +77,38 @@ model Document {
   revision  Int      @default(0)
   ownerId   String
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members   DocumentMember[]
+  shareLinks ShareLink[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([ownerId])
+}
+
+enum DocumentRole {
+  VIEWER
+  EDITOR
+}
+
+model DocumentMember {
+  documentId String
+  userId     String
+  role       DocumentRole
+  createdAt  DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, userId])
+  @@index([userId])
+}
+
+model ShareLink {
+  id         String @id @default(cuid())
+  documentId String
+  role       DocumentRole
+  tokenHash  String @unique
+  createdAt  DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, role])
 }

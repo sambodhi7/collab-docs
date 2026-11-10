@@ -3,11 +3,13 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
   if (!getSessionCookie(request)) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const login = new URL("/login", request.url);
+    if (request.nextUrl.pathname.startsWith("/share/")) login.searchParams.set("next", request.nextUrl.pathname);
+    return NextResponse.redirect(login);
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/documents/:path*"],
+  matcher: ["/dashboard/:path*", "/documents/:path*", "/share/:path*"],
 };

@@ -40,14 +40,14 @@ describe("document ownership", () => {
     expect(database.create).toHaveBeenCalledWith(expect.objectContaining({ data: { title: "A", ownerId: "user-a" } }));
   });
 
-  it("filters listing and individual reads by owner", async () => {
+  it("filters listing and individual reads by access", async () => {
     database.findMany.mockResolvedValue([]);
     database.findFirst.mockResolvedValue(null);
     expect((await GET(request("GET"))).status).toBe(200);
-    expect(database.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: "user-a" } }));
+    expect(database.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { OR: [{ ownerId: "user-a" }, { members: { some: { userId: "user-a" } } }] } }));
     session.userId = "user-b";
     expect((await getOne(request("GET"), context)).status).toBe(404);
-    expect(database.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id, ownerId: "user-b" } }));
+    expect(database.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id, OR: [{ ownerId: "user-b" }, { members: { some: { userId: "user-b" } } }] } }));
   });
 
   it("returns 404 for another owner's rename and delete", async () => {

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 type SaveStatus = "saved" | "unsaved" | "saving" | "error" | "conflict";
 
-export function DocumentEditor({ id, initialContent, initialRevision }: { id: string; initialContent: JSONContent; initialRevision: number }) {
+export function DocumentEditor({ id, initialContent, initialRevision, canEdit }: { id: string; initialContent: JSONContent; initialRevision: number; canEdit: boolean }) {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [message, setMessage] = useState("");
   const revision = useRef(initialRevision);
@@ -55,9 +55,11 @@ export function DocumentEditor({ id, initialContent, initialRevision }: { id: st
   const editor = useEditor({
     extensions: [StarterKit.configure({ heading: { levels: [1, 2, 3] } })],
     content: initialContent,
+    editable: canEdit,
     immediatelyRender: false,
     editorProps: { attributes: { class: "document-content min-h-96 outline-none", "aria-label": "Document content" } },
     onUpdate: ({ editor }) => {
+      if (!canEdit) return;
       latest.current = editor.getJSON();
       dirty.current = true;
       if (!blocked.current) {
@@ -100,10 +102,10 @@ export function DocumentEditor({ id, initialContent, initialRevision }: { id: st
 
   return <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm" aria-label="Document editor">
     <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-4 py-3">
-      {tools.map((tool) => <button key={tool.label} type="button" aria-label={tool.label} aria-pressed={!!editor?.isActive(tool.active)} onClick={tool.run} disabled={!editor} className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-indigo-50 aria-pressed:border-indigo-400 aria-pressed:bg-indigo-50 aria-pressed:text-indigo-800 disabled:opacity-50">{tool.text}</button>)}
-      <button type="button" onClick={setLink} disabled={!editor} className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-indigo-50 disabled:opacity-50">Link</button>
-      <span className="ml-auto text-xs font-medium text-zinc-500" role="status" aria-live="polite">{status === "saved" ? "All changes saved" : status === "saving" ? "Saving…" : status === "unsaved" ? "Unsaved changes" : status === "conflict" ? "Save conflict" : "Save failed"}</span>
-      {(status === "error" || status === "unsaved") && <button type="button" onClick={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } void save(); }} className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white">Save now</button>}
+      {canEdit && tools.map((tool) => <button key={tool.label} type="button" aria-label={tool.label} aria-pressed={!!editor?.isActive(tool.active)} onClick={tool.run} disabled={!editor} className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-indigo-50 aria-pressed:border-indigo-400 aria-pressed:bg-indigo-50 aria-pressed:text-indigo-800 disabled:opacity-50">{tool.text}</button>)}
+      {canEdit && <button type="button" onClick={setLink} disabled={!editor} className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-indigo-50 disabled:opacity-50">Link</button>}
+      <span className="ml-auto text-xs font-medium text-zinc-500" role="status" aria-live="polite">{!canEdit ? "View only" : status === "saved" ? "All changes saved" : status === "saving" ? "Saving…" : status === "unsaved" ? "Unsaved changes" : status === "conflict" ? "Save conflict" : "Save failed"}</span>
+      {canEdit && (status === "error" || status === "unsaved") && <button type="button" onClick={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } void save(); }} className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white">Save now</button>}
     </div>
     {message && <p role="alert" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">{message}</p>}
     <div className="px-6 py-8 sm:px-10"><EditorContent editor={editor} /></div>
