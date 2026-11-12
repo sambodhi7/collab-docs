@@ -9,6 +9,8 @@ type SaveStatus = "saved" | "unsaved" | "saving" | "error" | "conflict";
 export function DocumentEditor({ id, initialContent, initialRevision, canEdit }: { id: string; initialContent: JSONContent; initialRevision: number; canEdit: boolean }) {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [message, setMessage] = useState("");
+  const [connection, setConnection] = useState("Connecting…");
+  const [accessEnded, setAccessEnded] = useState(false);
   const revision = useRef(initialRevision);
   const latest = useRef<JSONContent>(initialContent);
   const dirty = useRef(false);
@@ -33,7 +35,7 @@ export function DocumentEditor({ id, initialContent, initialRevision, canEdit }:
         blocked.current = true;
         dirty.current = true;
         setStatus("conflict");
-        setMessage("This document changed in another tab. Copy your unsaved text before reloading.");
+        setMessage("Someone saved a newer version. Your edits are still here. Copy them before loading the latest version.");
         return;
       }
       if (!response.ok) throw new Error(response.status === 400 ? "Document content is too large or invalid." : "Could not save. Check your connection and try again.");
@@ -71,6 +73,56 @@ export function DocumentEditor({ id, initialContent, initialRevision, canEdit }:
   });
 
   useEffect(() => {
+    if (!editor) return;
+    const stream = new EventSource(`/api/documents/${id}/content`);
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    let pending: { revision: number; content: JSONContent | null } | undefined;
+    stream.onopen = () => {
+      clearTimeout(reconnectTimer);
+      setConnection("Live");
+    };
+    stream.onerror = () => {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        setConnection(stream.readyState === EventSource.CLOSED ? "Sync unavailable" : "Reconnecting…");
+      }, 3000);
+    };
+    stream.addEventListener("access-ended", () => {
+      stream.close();
+      clearTimeout(reconnectTimer);
+      blocked.current = true;
+      editor.setEditable(false);
+      setAccessEnded(true);
+      setConnection("Access ended");
+      setMessage("You no longer have access to this document. Copy any unsaved text before leaving.");
+    });
+    function applyPending() {
+      if (!editor || !pending || pending.revision <= revision.current || saving.current || dirty.current || blocked.current || editor.view.composing) return;
+
+      const content = pending.content ?? { type: "doc", content: [{ type: "paragraph" }] };
+      const applied = editor.chain()
+        .setMeta("addToHistory", false)
+        .setContent(content, { emitUpdate: false })
+        .run();
+      if (applied) {
+        revision.current = pending.revision;
+        latest.current = content;
+        pending = undefined;
+      }
+    }
+    stream.onmessage = (event) => {
+      pending = JSON.parse(event.data);
+      applyPending();
+    };
+    const pendingTimer = setInterval(applyPending, 250);
+    return () => {
+      stream.close();
+      clearInterval(pendingTimer);
+      clearTimeout(reconnectTimer);
+    };
+  }, [editor, id]);
+
+  useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (dirty.current || saving.current) event.preventDefault();
     };
@@ -102,10 +154,12 @@ export function DocumentEditor({ id, initialContent, initialRevision, canEdit }:
 
   return <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm" aria-label="Document editor">
     <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-4 py-3">
-      {canEdit && tools.map((tool) => <button key={tool.label} type="button" aria-label={tool.label} aria-pressed={!!editor?.isActive(tool.active)} onClick={tool.run} disabled={!editor} className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-indigo-50 aria-pressed:border-indigo-400 aria-pressed:bg-indigo-50 aria-pressed:text-indigo-800 disabled:opacity-50">{tool.text}</button>)}
-      {canEdit && <button type="button" onClick={setLink} disabled={!editor} className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-indigo-50 disabled:opacity-50">Link</button>}
+      {canEdit && !accessEnded && tools.map((tool) => <button key={tool.label} type="button" aria-label={tool.label} aria-pressed={!!editor?.isActive(tool.active)} onClick={tool.run} disabled={!editor} className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-indigo-50 aria-pressed:border-indigo-400 aria-pressed:bg-indigo-50 aria-pressed:text-indigo-800 disabled:opacity-50">{tool.text}</button>)}
+      {canEdit && !accessEnded && <button type="button" onClick={setLink} disabled={!editor} className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-indigo-50 disabled:opacity-50">Link</button>}
+      <span className="text-xs font-medium text-zinc-600" role="status">{connection}</span>
       <span className="ml-auto text-xs font-medium text-zinc-500" role="status" aria-live="polite">{!canEdit ? "View only" : status === "saved" ? "All changes saved" : status === "saving" ? "Saving…" : status === "unsaved" ? "Unsaved changes" : status === "conflict" ? "Save conflict" : "Save failed"}</span>
-      {canEdit && (status === "error" || status === "unsaved") && <button type="button" onClick={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } void save(); }} className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white">Save now</button>}
+      {canEdit && !accessEnded && (status === "error" || status === "unsaved") && <button type="button" onClick={() => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } void save(); }} className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white">Save now</button>}
+      {!accessEnded && status === "conflict" && <button type="button" onClick={() => window.location.reload()} className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium">Load latest</button>}
     </div>
     {message && <p role="alert" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">{message}</p>}
     <div className="px-6 py-8 sm:px-10"><EditorContent editor={editor} /></div>

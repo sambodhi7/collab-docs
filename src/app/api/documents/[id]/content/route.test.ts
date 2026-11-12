@@ -5,7 +5,7 @@ const database = vi.hoisted(() => ({ updateMany: vi.fn(), findFirst: vi.fn() }))
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession: async () => state.userId ? { user: { id: state.userId } } : null } } }));
 vi.mock("@/lib/prisma", () => ({ prisma: { document: database } }));
 
-import { PUT } from "./route";
+import { GET, PUT } from "./route";
 
 const id = "cmg1234567890123456789012";
 const context = { params: Promise.resolve({ id }) };
@@ -13,6 +13,28 @@ const content = { type: "doc", content: [{ type: "paragraph", content: [{ type: 
 const request = (body: unknown) => new Request(`http://localhost/api/documents/${id}/content`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 beforeEach(() => { vi.clearAllMocks(); state.userId = "user-a"; });
+
+it("only opens a live stream for users who can read the document", async () => {
+  const readRequest = new Request(`http://localhost/api/documents/${id}/content`);
+  state.userId = null;
+  expect((await GET(readRequest, context)).status).toBe(401);
+  expect(database.findFirst).not.toHaveBeenCalled();
+
+  state.userId = "user-a";
+  database.findFirst.mockResolvedValueOnce(null);
+  expect((await GET(readRequest, context)).status).toBe(404);
+
+  database.findFirst.mockResolvedValueOnce({ revision: 3, content });
+  const response = await GET(readRequest, context);
+  expect(response.headers.get("Content-Type")).toBe("text/event-stream");
+  const reader = response.body!.getReader();
+  try {
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toContain(`data: ${JSON.stringify({ revision: 3, content })}\n\n`);
+  } finally {
+    await reader.cancel();
+  }
+});
 
 it("rejects anonymous saves before accessing the database", async () => {
   state.userId = null;
